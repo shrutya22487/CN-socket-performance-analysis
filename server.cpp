@@ -77,6 +77,7 @@ int main() {
         }
         *new_sock = client_sock;
         printf("Handler assigned.\n");
+        handle_client(new_sock);
     }
 
     if (client_sock < 0) {
