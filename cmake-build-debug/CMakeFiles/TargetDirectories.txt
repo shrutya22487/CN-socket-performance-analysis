@@ -1,0 +1,3 @@
+/home/shrutya/Documents/CN_assignment_2/cmake-build-debug/CMakeFiles/CN_assignment_2.dir
+/home/shrutya/Documents/CN_assignment_2/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/shrutya/Documents/CN_assignment_2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
