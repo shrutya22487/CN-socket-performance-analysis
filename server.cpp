@@ -1,10 +1,11 @@
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include <stdlib.h>   // Include for malloc
+#include <stdlib.h>
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
@@ -63,7 +64,11 @@ int main() {
     printf("Bind done.\n");
 
     // Listen for incoming connections
-    listen(server_sock, 5);
+    if(listen(server_sock, 5)) {
+        std::cerr << "Could not listen on socket" << std::endl;
+        exit(1);
+    }
+
     printf("Waiting for incoming connections...\n");
 
     while ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addr_size))) {
@@ -76,8 +81,16 @@ int main() {
             return 1;
         }
         *new_sock = client_sock;
+
+        // Create a new thread for each client
+        if (pthread_create(&client_thread, NULL, handle_client, (void *)new_sock) < 0) {
+            perror("Could not create thread");
+            return 1;
+        }
         printf("Handler assigned.\n");
-        handle_client(new_sock);
+
+        // Detach the thread to allow for proper resource deallocation
+        pthread_detach(client_thread);
     }
 
     if (client_sock < 0) {
