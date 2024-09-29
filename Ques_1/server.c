@@ -149,7 +149,6 @@ void *handle_client(void *client_arg) {
     return NULL;
 }
 
-
 int main() {
     int server_fd, new_socket;
     struct sockaddr_in address;
@@ -180,7 +179,12 @@ int main() {
     while ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) >= 0) {
         printf("Connection accepted.\n");
 
-        int *new_sock = malloc(sizeof(int));
+        if (new_socket < 0) {
+            perror("Accept error.\n");
+            return 1;
+        }
+
+        int *new_sock = (int *)malloc(sizeof(int));
         *new_sock = new_socket;
         pthread_t thread_id;
 
@@ -191,11 +195,6 @@ int main() {
         }
 
         pthread_detach(thread_id);
-    }
-
-    if (new_socket < 0) {
-        perror("Accept error.\n");
-        return 1;
     }
 
     close(server_fd);
