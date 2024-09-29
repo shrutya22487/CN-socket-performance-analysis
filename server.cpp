@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#define PORT 8080
+#define PORT 8081
 #define BUFFER_SIZE 1024
 #define MAX_PROCESSES 100
 
