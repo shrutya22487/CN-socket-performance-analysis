@@ -191,10 +191,7 @@ int main() {
 
     int *new_sock = (int *)malloc(sizeof(int));
     *new_sock = new_socket;
-    // send(new_socket, hello, strlen(hello), 0);
-    // std::cout << "Hello message sent" << std::endl;
-    // read(new_socket, buffer, 1024);
-    // std::cout << "Message received: " << buffer << std::endl;
+    
     if (new_socket < 0) {
         perror("Accept error.\n");
         return 1;

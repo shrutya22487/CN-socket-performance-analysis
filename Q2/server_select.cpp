@@ -7,6 +7,16 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/select.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <ctype.h> 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 8080
 #define MAX_CLIENTS 10
@@ -114,47 +124,12 @@ void get_top_two_processes(struct process_info *top_processes) {
     top_processes[1] = p2;
 }
 
-void *handle_client(void *client_arg) {
-    int client_socket = *(int*)client_arg;
-    char buffer[BUFFER_SIZE] = {0};
-    int read_size;
-
-    if (read(client_socket, buffer, BUFFER_SIZE) < 0) {
-        perror("Read error.\n");
-        close(client_socket);
-        free(client_arg);
-        return NULL;
-    }
-    else printf("Received request from client: %s\n", buffer);
-
-    if (strcmp(buffer, "Requesting top 2 processes") == 0) {
-        struct process_info top_processes[2];
-        get_top_two_processes(top_processes);
-
-        sprintf(buffer, "Process 1: PID=%d, Name=%s, CPU Time=%llu\n"
-                        "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
-                top_processes[0].pid, top_processes[0].name, top_processes[0].cpu_time,
-                top_processes[1].pid, top_processes[1].name, top_processes[1].cpu_time);
-        send(client_socket, buffer, strlen(buffer), 0);
-    }
-    else {
-        sprintf(buffer, "Unsupported request");
-        send(client_socket, buffer, strlen(buffer), 0);
-    }
-
-    // Close the socket for this client
-    close(client_socket);
-    free(client_arg);
-
-    return NULL;
-}
-
-
 int main() {
     int server_fd, new_socket, client_sockets[MAX_CLIENTS], max_sd, sd;
     struct sockaddr_in address;
     fd_set readfds;
     char buffer[BUFFER_SIZE];
+    int addrlen = sizeof(address);
 
     // Initialize client sockets
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -179,6 +154,7 @@ int main() {
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
+
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("Bind failed");
         exit(EXIT_FAILURE);
@@ -191,10 +167,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
     else printf("Server listening for incoming connection requests.\n");
-
-    // std::cout << "Listening on port " << PORT << std::endl;
-
-    int addrlen = sizeof(address);
 
     while (true) {
         // Clear the socket set
@@ -244,9 +216,19 @@ int main() {
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_sockets[i];
             if (FD_ISSET(sd, &readfds)) {
-                // Check if it was for closing, and also read the incoming message
-                int valread = read(sd, buffer, BUFFER_SIZE);
-                if (valread == 0) {
+        
+                int val_read = read(sd, buffer, BUFFER_SIZE);
+                if (val_read < 0) {
+                    perror("Read error.\n");
+                    close(sd);
+                    return 1;
+                }
+                else if(val_read > 0){
+                    buffer[val_read] = '\0';
+                    printf("Received request from client: %s\n", buffer);
+                }
+
+                if (val_read == 0) {
                     // Client disconnected
                     getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
                     std::cout << "Host disconnected, IP " << inet_ntoa(address.sin_addr)
@@ -254,10 +236,25 @@ int main() {
 
                     close(sd);
                     client_sockets[i] = 0;
-                } else {
-                    // send msg to client
+                } 
+                else if (strcmp(buffer, "Requesting top 2 processes") == 0) {
                     
+                    memset(buffer, 0, BUFFER_SIZE);                   
+                    struct process_info top_processes[2];
+                    get_top_two_processes(top_processes);
+
+                    sprintf(buffer, "Process 1: PID=%d, Name=%s, CPU Time=%llu\n"
+                                    "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
+                            top_processes[0].pid, top_processes[0].name, top_processes[0].cpu_time,
+                            top_processes[1].pid, top_processes[1].name, top_processes[1].cpu_time);
+                    send(sd, buffer, strlen(buffer), 0);
                 }
+                else {
+                    memset(buffer, 0, BUFFER_SIZE);
+                    sprintf(buffer, "Unsupported request");
+                    send(sd, buffer, strlen(buffer), 0);
+                }
+
             }
         }
     }
