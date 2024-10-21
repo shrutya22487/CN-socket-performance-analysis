@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define SERVER_IP "192.168.1.3" // change to "10.0.0.1" if on VM, "127.0.0.1" if on local machine
+#define SERVER_IP "127.0.0.1"
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
@@ -57,16 +57,63 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int num_threads = atoi(argv[1]);
-
-    if (num_threads <= 0) {
+    int num_requests = atoi(argv[1]);
+    if (num_requests <= 0) {
         printf("Invalid number of connection requests.\n");
         return 1;
     }
 
-    pthread_t threads[num_threads];
+    // Handling single client connection request with infinite input loop
+    /*
+    int sock = 0;
+    struct sockaddr_in serv_addr;
+    char buffer[BUFFER_SIZE] = {0};
+    char message[BUFFER_SIZE];
 
-    for (int i = 0; i < num_threads; i++) {
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Socket creation error.\n");
+        return -1;
+    }
+    printf("Socket created successfully.\n");
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0) {
+        perror("Invalid address error.\n");
+        return -1;
+    }
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        perror("Connection error.\n");
+        return -1;
+    }
+    printf("Connected to the server.\n");
+
+    printf("Enter a message (or Ctrl+D to quit): ");
+    while (fgets(message, BUFFER_SIZE, stdin)) {
+        message[strcspn(message, "\n")] = 0;
+        send(sock, message, strlen(message), 0);
+        printf("Message sent to server.\n");
+
+        memset(buffer, 0, BUFFER_SIZE);
+        int valread = read(sock, buffer, BUFFER_SIZE);
+        if (valread > 0) {
+            buffer[valread] = '\0';
+            printf("Server replied:\n%s\n", buffer);
+        }
+
+        printf("Enter a message (or Ctrl+D to quit): ");
+    }
+
+    close(sock);
+    printf("Connection closed.\n");
+    */
+
+    // Multithreaded client connection requests
+    pthread_t threads[num_requests];
+
+    for (int i = 0; i < num_requests; i++) {
         int *client_num = malloc(sizeof(int));
         *client_num = i + 1;
 
@@ -75,11 +122,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < num_requests; i++) {
         pthread_join(threads[i], NULL);
     }
-
-    // printf("Client communication ended.\n");
 
     return 0;
 }

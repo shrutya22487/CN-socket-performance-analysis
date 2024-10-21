@@ -7,10 +7,22 @@
 #include <ctype.h> 
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <pthread.h>
+#include <signal.h>
+#include <errno.h>
+#include <sys/select.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
+#define MAX_CLIENTS 100
+
+volatile sig_atomic_t running = 1;
+int server_fd = 0; 
+
+void handle_sigint(int sig) {
+    running = 0;
+    printf("\nReceived Ctrl+C, shutting down the server gracefully.\n");
+    shutdown(server_fd, SHUT_RDWR); // forcing select()/accept() to stop
+}
 
 struct process_info {
     int pid;
@@ -45,7 +57,6 @@ unsigned long long get_process_cpu_time(int pid, struct process_info *proc) {
     }
 
     proc->pid = atoi(fields[0]);
-
     snprintf(proc->name, sizeof(proc->name), "%s", fields[1]);
     size_t name_len = strlen(proc->name);
     if (proc->name[0] == '(' && proc->name[name_len - 1] == ')') {
@@ -55,7 +66,6 @@ unsigned long long get_process_cpu_time(int pid, struct process_info *proc) {
 
     proc->user_cpu_time = strtoul(fields[13], NULL, 10);
     proc->kernel_cpu_time = strtoul(fields[14], NULL, 10);
-
     proc->cpu_time = proc->user_cpu_time + proc->kernel_cpu_time;
 
     fclose(stat_file);
@@ -114,51 +124,24 @@ void get_top_two_processes(struct process_info *top_processes) {
     top_processes[1] = p2;
 }
 
-void *handle_client(void *client_arg) {
-    int client_socket = *(int*)client_arg;
-    char buffer[BUFFER_SIZE] = {0};
-    int read_size;
-
-    if (read(client_socket, buffer, BUFFER_SIZE) < 0) {
-        perror("Read error.\n");
-        close(client_socket);
-        free(client_arg);
-        return NULL;
-    }
-    else printf("Received request from client: %s\n", buffer);
-
-    if (strcmp(buffer, "Requesting top 2 processes") == 0) {
-        struct process_info top_processes[2];
-        get_top_two_processes(top_processes);
-
-        sprintf(buffer, "Process 1: PID=%d, Name=%s, CPU Time=%llu\n"
-                        "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
-                top_processes[0].pid, top_processes[0].name, top_processes[0].cpu_time,
-                top_processes[1].pid, top_processes[1].name, top_processes[1].cpu_time);
-        send(client_socket, buffer, strlen(buffer), 0);
-    }
-    else {
-        sprintf(buffer, "Unsupported request");
-        send(client_socket, buffer, strlen(buffer), 0);
-    }
-
-    // Close the socket for this client
-    close(client_socket);
-    free(client_arg);
-
-    return NULL;
-}
-
 int main() {
-    int server_fd, new_socket;
+    int max_sd, activity;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
+    int client_sockets[MAX_CLIENTS] = {0};
+
+    signal(SIGINT, handle_sigint);
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Error in creating socket.\n");
         exit(EXIT_FAILURE);
     }
-    else printf("Server Socket created successfully.\n");
+    printf("Server Socket created successfully.\n");
+
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &(int){1}, sizeof(int)) < 0) {
+        perror("Setsockopt error.\n");
+        exit(EXIT_FAILURE);
+    }
 
     address.sin_family = AF_INET; 
     address.sin_addr.s_addr = INADDR_ANY; 
@@ -168,35 +151,85 @@ int main() {
         perror("Bind error.\n");
         exit(EXIT_FAILURE);
     }
-    else printf("Server Socket binded successfully.\n");
+    printf("Server Socket binded successfully.\n");
 
     if (listen(server_fd, 3) < 0) {
         perror("Listen error.\n");
         exit(EXIT_FAILURE);
     }
-    else printf("Server listening for incoming connection requests.\n");
+    printf("Server listening for incoming connection requests.\n");
 
-    while ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) >= 0) {
-        printf("Connection accepted.\n");
+    while (running) {
+        fd_set readfds; 
+        FD_ZERO(&readfds);
+        FD_SET(server_fd, &readfds);
+        max_sd = server_fd;
 
-        if (new_socket < 0) {
-            perror("Accept error.\n");
-            return 1;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            int sd = client_sockets[i];
+            if (sd > 0) {
+                FD_SET(sd, &readfds);
+            }
+            if (sd > max_sd) {
+                max_sd = sd;
+            }
         }
 
-        int *new_sock = (int *)malloc(sizeof(int));
-        *new_sock = new_socket;
-        pthread_t thread_id;
-
-        if (pthread_create(&thread_id, NULL, handle_client, (void*)new_sock) < 0) {
-            perror("Couldn't create server thread.");
-            free(new_sock);
-            return 1;
+        activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
+        if ((activity < 0) && (errno != EINTR)) {
+            perror("Select error");
         }
 
-        pthread_detach(thread_id);
+        if (FD_ISSET(server_fd, &readfds)) {
+            int new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+            if (new_socket < 0) {
+                if (errno == EBADF || !running) {
+                    break;
+                }
+                perror("Accept error.\n");
+                continue;
+            }
+            printf("New connection accepted.\n");
+
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (client_sockets[i] == 0) {
+                    client_sockets[i] = new_socket;
+                    printf("Adding to list of sockets as: %d\n", i);
+                    break;
+                }
+            }
+        }
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            int sd = client_sockets[i];
+            if (FD_ISSET(sd, &readfds)) {
+                char buffer[BUFFER_SIZE] = {0};
+                int read_size;
+
+                if ((read_size = read(sd, buffer, BUFFER_SIZE)) == 0) {
+                    printf("Client disconnected.\n");
+                    close(sd);
+                    client_sockets[i] = 0;
+                } else {
+                    printf("Received request from client: %s\n", buffer);
+                    if (strcmp(buffer, "Requesting top 2 processes") == 0) {
+                        struct process_info top_processes[2];
+                        get_top_two_processes(top_processes);
+                        sprintf(buffer, "Process 1: PID=%d, Name=%s, CPU Time=%llu\n"
+                                        "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
+                                top_processes[0].pid, top_processes[0].name, top_processes[0].cpu_time,
+                                top_processes[1].pid, top_processes[1].name, top_processes[1].cpu_time);
+                    } else {
+                        sprintf(buffer, "Unsupported request");
+                    }
+                    send(sd, buffer, strlen(buffer), 0);
+                }
+            }
+        }
     }
 
     close(server_fd);
+    printf("Server Socket closed.\n");
+
     return 0;
 }
