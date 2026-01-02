@@ -5,7 +5,7 @@
 
 ## Quick overview ✅
 
-This repository contains C implementations for a course assignment (TCP client/server variants) and a simple perf-based performance analysis. The original assignment instructions are included in `instructions.pdf`. 
+This repository contains C implementations for (TCP client/server variants) and a simple perf-based performance analysis.
 
 Main source files (examples):
 
@@ -124,18 +124,6 @@ For the assignment you can compare:
 * select-based server
 
 Collect results across varying concurrent clients (`n`) and pinned CPU configurations; aggregate into `report.pdf`.
-
----
-
-## What to include in the report 📎
-
-Per the assignment instructions (single report with screenshots and observations):
-
-* Experimental setup (VM/container specs, kernel version, CPU topology). 
-* Exact commands used (compilation, `taskset`, `perf` invocations).
-* Tables/plots showing metrics (throughput, latency, cycles, cache-misses, context switches) vs concurrent clients.
-* Short analysis explaining observed differences (why multithreading or `select` behaves as observed).
-* Attach screenshots and name the submission zip as `<Roll_No>-Assignment2.zip`. 
 
 ---
 
