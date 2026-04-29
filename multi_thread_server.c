@@ -1,10 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <dirent.h>
-#include <fcntl.h>
-#include <ctype.h> 
+#include <ctype.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
@@ -27,7 +25,7 @@ struct process_info {
     char name[256];
     unsigned long long user_cpu_time;
     unsigned long long kernel_cpu_time;
-    unsigned long long cpu_time;  // user + kernel time in clock ticks
+    unsigned long long cpu_time; // user + kernel time in clock ticks
 };
 
 unsigned long long get_process_cpu_time(int pid, struct process_info *proc) {
@@ -46,7 +44,7 @@ unsigned long long get_process_cpu_time(int pid, struct process_info *proc) {
     }
     fclose(stat_file);
 
-    char *fields[52]; 
+    char *fields[52];
     char *tok = strtok(buffer, " ");
     int idx = 0;
 
@@ -83,7 +81,7 @@ void get_top_two_processes(struct process_info *top_processes) {
 
     struct process_info p1;
     struct process_info p2;
-    
+
     unsigned long long maxi1 = 0;
     unsigned long long maxi2 = 0;
 
@@ -125,7 +123,7 @@ void get_top_two_processes(struct process_info *top_processes) {
 }
 
 void *handle_client(void *client_arg) {
-    int client_socket = *(int*)client_arg;
+    int client_socket = *(int *) client_arg;
     char buffer[BUFFER_SIZE] = {0};
 
     if (read(client_socket, buffer, BUFFER_SIZE) < 0) {
@@ -133,20 +131,18 @@ void *handle_client(void *client_arg) {
         close(client_socket);
         free(client_arg);
         return NULL;
-    }
-    else printf("Received request from client: %s\n", buffer);
+    } else printf("Received request from client: %s\n", buffer);
 
     if (strcmp(buffer, "Requesting top 2 processes") == 0) {
         struct process_info top_processes[2];
         get_top_two_processes(top_processes);
 
         sprintf(buffer, "Process 1: PID=%d, Name=%s, CPU Time=%llu\n"
-                        "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
+                "Process 2: PID=%d, Name=%s, CPU Time=%llu\n",
                 top_processes[0].pid, top_processes[0].name, top_processes[0].cpu_time,
                 top_processes[1].pid, top_processes[1].name, top_processes[1].cpu_time);
         send(client_socket, buffer, strlen(buffer), 0);
-    }
-    else {
+    } else {
         sprintf(buffer, "Unsupported request");
         send(client_socket, buffer, strlen(buffer), 0);
     }
@@ -176,11 +172,11 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    address.sin_family = AF_INET; 
-    address.sin_addr.s_addr = INADDR_ANY; 
-    address.sin_port = htons(PORT); 
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
         perror("Bind error.\n");
         exit(EXIT_FAILURE);
     }
@@ -193,7 +189,7 @@ int main() {
     printf("Server listening for incoming connection requests.\n");
 
     while (running) {
-        new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+        new_socket = accept(server_fd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
         if (new_socket < 0) {
             if (!running) break;
             perror("Accept error.\n");
@@ -206,7 +202,7 @@ int main() {
         *new_sock = new_socket;
         pthread_t thread_id;
 
-        if (pthread_create(&thread_id, NULL, handle_client, (void*)new_sock) < 0) {
+        if (pthread_create(&thread_id, NULL, handle_client, (void *) new_sock) < 0) {
             perror("Couldn't create server thread.");
             free(new_sock);
             continue;
