@@ -63,12 +63,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Handling multiple connection requests sequentially
-    /*
-    for (int i = 0; i < num_requests; i++) {
-        handle_client(i + 1);
-    }
-    */
 
     // Multithreaded client connection requests
     pthread_t threads[num_requests];

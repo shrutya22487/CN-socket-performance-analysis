@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
         pthread_join(threads[i], NULL);
     }
 
-    // printf("Client communication ended.\n");
+    printf("Client communication ended.\n");
 
     return 0;
 }

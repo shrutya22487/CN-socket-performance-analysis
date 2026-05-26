@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
