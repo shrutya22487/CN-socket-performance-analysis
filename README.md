@@ -37,7 +37,7 @@ From the repo root:
 make
 ```
 
-If `make` isn't available, use `cmake` (in `cmake-build-debug` or similar) or compile manually as below.
+If `make` isn't available, compile manually as below.
 
 ### Manual compile examples
 
@@ -77,9 +77,14 @@ taskset -c 0 ./server_select 9000
 ```bash
 # common pattern: client <server_ip> <port> <n>
 # (check each source's usage header/comments — exact args may vary)
-./single_thread_client 192.168.1.10 9000 1
+./single_thread_client 9000 <num_requests>
 # spawn multiple concurrent client processes from one host:
 for i in $(seq 1 10); do ./multi_thread_client 192.168.1.10 9000 1 & done
+```
+
+```bash
+./multi_threaded_client.c <number of threads>
+
 ```
 
 > Note: argument formats may differ slightly between client implementations. If a program prints a usage line or expects different params, follow the comments at the top of the `.c` file.
@@ -104,17 +109,18 @@ taskset -c 1 ./multi_thread_client 192.168.1.10 9000 1
 
 ## Basic `perf` usage for measurement 📊
 
+### Installing perf:
+```bash
+sudo apt install linux-tools-common linux-tools-generic
+```
+
 Collect high-level stats:
 
 ```bash
 # run server, then on same host:
-perf stat -e cycles,instructions,cache-misses,context-switches -p <server_pid>
-```
-
-Measure an execution run:
-
-```bash
-perf stat -e cpu-clock,task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions,cache-references,cache-misses ./multi_thread_client 192.168.1.10 9000 100
+sudo taskset -c 0 perf stat \
+-e task-clock,context-switches,cpu-migrations,cpu-cycles,page-faults,instructions,cache-misses,branch-misses \
+<executable> <args>
 ```
 
 For the assignment you can compare:
@@ -123,7 +129,7 @@ For the assignment you can compare:
 * concurrent multithreaded server
 * select-based server
 
-Collect results across varying concurrent clients (`n`) and pinned CPU configurations; aggregate into `report.pdf`.
+Collect results across varying concurrent clients (`n`) and pinned CPU configurations; aggregate into `documentation.pdf`.
 
 ---
 
